@@ -47,7 +47,7 @@ LDMX-sw and the Hcal submodule. Next, for now at least we need the following
   We need to find out what's going on here...
 
 
-- +Hard code the detector map instead of using the conditions system+ hopefully not needed any more
+- +Hard code the detector map instead of using the conditions system+ +hopefully not needed any more+ Confirmed not needed anymore!
 
   In https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalRawDecoder.cxx
   Change line 332 from
