@@ -40,7 +40,9 @@ First of all, we need to have LDMX-sw with the iss998-hgcroc branch for both
 LDMX-sw and the Hcal submodule. Next, for now at least we need the following
 "patches"/"hacks".
 
-- Ignore duplicate mappings
+None of them needed any more, yay!
+
+- +Ignore duplicate mappings+ fixed
 
   Currently, we are getting duplicate electronics IDs from our map. I'm not sure how, but at the moment I'm just skipping this by commenting out the exception on line 70 in https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalDetectorMap.cxx
 
@@ -63,7 +65,7 @@ LDMX-sw and the Hcal submodule. Next, for now at least we need the following
 
   This assumes that the connections file is available in the current directory. Otherwise, just change it to what you want
 
-- Add a bogus column to the testbeam_connections.csv file
+- +Add a bogus column to the testbeam_connections.csv file+ Was caused by windows vs unix, fixed now
 
   The CSV loader consistently fails to parse the last column in the csv file.
   I'm suspecting that there's some whitespace related issue because the name of
@@ -76,7 +78,7 @@ LDMX-sw and the Hcal submodule. Next, for now at least we need the following
    1,1,1,1,3,1,0
   #+end_src
 
-- Add 256 to the HGCROC number
+- +Add 256 to the HGCROC number+ Fixed in the EID code
 
   The ROC_ID from the data stream starts from 256. Not sure if that's what it's
   supposed to do, but since that's what we are getting we'll have to make sure
