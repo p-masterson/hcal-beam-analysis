@@ -9,11 +9,14 @@ LDMX-sw and the Hcal submodule. Next, for now at least we need the following
   In https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalRawDecoder.cxx
   Change line 332 from
 
+  #+begin_src C++
   auto detmap{
       getCondition<HcalDetectorMap>(HcalDetectorMap::CONDITIONS_OBJECT_NAME)};
-
+  #+end_src
   to
+  #+begin_src C++
   auto detmap = HcalDetectorMap("testbeam_connections.csv", false);
+  #+end_src
 
   This assumes that the connections file is available in the current directory. Otherwise, just change it to what you want
 
@@ -40,6 +43,10 @@ LDMX-sw and the Hcal submodule. Next, for now at least we need the following
   In  https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalDetectorMap.cxx
 
   change line 64 from
+  #+begin_src C++
           csv.getInteger("HGCROC") /*fiber*/,
+  #+end_src
   to
+  #+begin_src C++
           csv.getInteger("HGCROC") + 256/*fiber*/,
+  #+end_src
