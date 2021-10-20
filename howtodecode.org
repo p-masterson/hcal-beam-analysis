@@ -40,6 +40,13 @@ First of all, we need to have LDMX-sw with the iss998-hgcroc branch for both
 LDMX-sw and the Hcal submodule. Next, for now at least we need the following
 "patches"/"hacks".
 
+- Ignore duplicate mappings
+
+  Currently, we are getting duplicate electronics IDs from our map. I'm not sure how, but at the moment I'm just skipping this by commenting out the exception on line 70 in https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalDetectorMap.cxx
+
+  We need to find out what's going on here...
+
+
 - +Hard code the detector map instead of using the conditions system+ hopefully not needed any more
 
   In https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalRawDecoder.cxx
