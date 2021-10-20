@@ -1,0 +1,45 @@
+* How to get the RawDecoding to work
+
+First of all, we need to have LDMX-sw with the iss998-hgcroc branch for both
+LDMX-sw and the Hcal submodule. Next, for now at least we need the following
+"patches"/"hacks".
+
+- Hard code the detector map instead of using the conditions system
+
+  In https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalRawDecoder.cxx
+  Change line 332 from
+
+  auto detmap{
+      getCondition<HcalDetectorMap>(HcalDetectorMap::CONDITIONS_OBJECT_NAME)};
+
+  to
+  auto detmap = HcalDetectorMap("testbeam_connections.csv", false);
+
+  This assumes that the connections file is available in the current directory. Otherwise, just change it to what you want
+
+- Add a bogus column to the testbeam_connections.csv file
+
+  The CSV loader consistently fails to parse the last column in the csv file.
+  I'm suspecting that there's some whitespace related issue because the name of
+  the column is one character longer than it should be. For now, I've just been
+  adding in an extra final column without any meaning to the CSV file. In other words, the structure of the file looks like this
+
+  HGCROC,Channel,CMB,Quadbar,Bar,Plane,Ignore
+  1,0,1,1,4,1,0
+  1,1,1,1,3,1,0
+
+- Add 256 to the HGCROC number
+
+  The ROC_ID from the data stream starts from 256. Not sure if that's what it's
+  supposed to do, but since that's what we are getting we'll have to make sure
+  that the stuff from testbeam_connections.csv matches. I'm just adding 256 in
+  code instead of changing the table.
+
+  In  https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalDetectorMap.cxx
+
+  change line 64 from
+          csv.getInteger("HGCROC") /*fiber*/,
+  to
+          csv.getInteger("HGCROC") + 256/*fiber*/,
+
+Then run your
