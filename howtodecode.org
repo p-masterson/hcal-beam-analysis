@@ -4,7 +4,7 @@ First of all, we need to have LDMX-sw with the iss998-hgcroc branch for both
 LDMX-sw and the Hcal submodule. Next, for now at least we need the following
 "patches"/"hacks".
 
-- Hard code the detector map instead of using the conditions system
+- +Hard code the detector map instead of using the conditions system+ hopefully not needed any more
 
   In https://github.com/LDMX-Software/Hcal/blob/iss998-hgcroc/src/Hcal/HcalRawDecoder.cxx
   Change line 332 from
