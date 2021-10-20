@@ -1,3 +1,39 @@
+* Translating HcalIDs
+
+I've yanked out some of the code from the DetDescr part of LDMX-sw to deal with
+the various DetectorID's that we have lying around.
+
+There are two IDs that are relevant for our kind of analysis now that the
+RawDecoder seems to be mostly working, the HcalDigiID and HcalID.
+
+The HcalDigiID represents a readoutchannel specified by section, layer, bar, and
+end and is what we get from the HgcrocDigiCollection.
+
+The HcalID represents an individual bar specified by section, layer, and bar and is what we get from running reconstruction.
+
+When I wrote this stuff, I wanted to be able to test things carefully so I
+needed to be able to construct these IDs from both the raw ID and the individual
+pieces. Therefore, there are two "constructors" so you create them like
+
+#+begin_src python
+hid=HcalDigiID().from_ID(raw_id)
+hid=HcalDigiID().from_vars(section, layer, bar, end)
+#+end_src
+
+There is a member function to tell you if the end is negative. But you can also
+just check, 1 means negative 0 means positive. Layers start from 1.
+
+You can get the individual pieces of an ID through corresponding member
+functions
+#+begin_src python
+section=hid.section()
+layer=hid.layer()
+bar=hid.bar()
+end=hid.end()
+#+end_src
+
+
+
 * How to get the RawDecoding to work
 
 First of all, we need to have LDMX-sw with the iss998-hgcroc branch for both
