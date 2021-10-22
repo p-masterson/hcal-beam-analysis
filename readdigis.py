@@ -5,7 +5,7 @@ from ROOT import gROOT, gStyle, gSystem, gPad
 gSystem.Load("libFramework.so")
 from TranslateHcalID import HcalDigiID, bar_to_pos
 
-inputFile=TFile("debug.root", "READ")
+inputFile=TFile("sim.root", "READ")  # debug.root
 eventTree=inputFile.Get("LDMX_Events")
 
 

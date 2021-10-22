@@ -4,6 +4,7 @@
 #naming standard: thisThing
 #To select which .root file and which type of plot to plot, just specify their name in the "plotGroups" array
 
+# NEW:  Now includes hcal plots!
 
 #this program takes many things that end with ".root" and outputs simulation and reconstruction plots into the folder "plots"
 #the process name in the config file should be "process", but can be specified in command line arguments 
@@ -16,6 +17,8 @@ import copy
 from array import array
 from ROOT import gSystem
 from optparse import OptionParser
+from TranslateHcalID import HcalDigiID, bar_to_pos
+
 gSystem.Load("libFramework.so") #this library is vital for it to run. It might be old though?
 # rootColors=[1,2,4,28,7] #a presumably color-blind friendly color palette
 # rootColors=[28,2,4] #a three-compare color-blind friendly color palette
@@ -55,9 +58,11 @@ def unabbreviate(str):
     elif str == "digiRecA(T)": return "ADC (y) vs TDC (x)"
     elif str == "digiRecA(ts)": return "ADC (y) vs time sample (x)"
     elif str == "digiRecT(ts)": return "TDC (y) vs time sample (x)"
+    elif str == "digiH_adc": return "ADC (y) vs bar+(end*13) (x)"
+    elif str == "digiH_thresh": return "Hits over threshold"
     else: return str
 
-def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIEDigisUp_",process= "process" ):
+def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIEDigisUp_",process= "process", hcal_threshold = 40):
 
     if plotVar == 'digiRecT':
         for entry in allData: 
@@ -104,6 +109,26 @@ def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIE
                         integral+= ADCtoQ(h.getADC()[time])
                     hist.Fill(integral) 
 
+    elif plotVar == 'digiH_adc':
+        for entry in allData:
+            digis = getattr(entry, collection+process)
+            for i in range(digis.getNumDigis()):
+                d = digis.getDigi(i)
+                chID = d.id()
+                digiID = HcalDigiID().from_ID(chID)
+                if digiID.layer() == channel:
+                    hist.Fill(digiID.bar() + 0.5*digiID.end(), d.soi().adc_t())
+
+    elif plotVar == 'digiH_thresh':
+        for entry in allData:
+            digis = getattr(entry, collection+process)
+            for i in range(digis.getNumDigis()):
+                d = digis.getDigi(i)
+                chID = d.id()
+                digiID = HcalDigiID().from_ID(chID)
+                if d.soi().adc_t() > hcal_threshold and digiID.layer() == channel:
+                     hist.Fill(digiID.bar() + 0.5*digiID.end())
+                
 
     return hist                
 
@@ -111,17 +136,22 @@ def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIE
 
 def main(options):       
     #In each line, just specify in the form (('digiRecT','fileName'),),   
-    plotGroups = [
-        (('digiRecT','Trigger_4e-(000)'),),
-        (('digiRecA','Trigger_4e-(000)'),),
-        (('digiRecJ','Trigger_4e-(000)'),),
-        (('digiRecA(T)','Trigger_4e-(000)'),),
-        (('digiRecT(ts)','Trigger_4e-(000)'),),
-        (('digiRecA(ts)','Trigger_4e-(000)'),),
+    plotGroupsT = [
+        (('digiRecT','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecA','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecJ','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecA(T)','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecT(ts)','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecA(ts)','sim'),), #'Trigger_4e-(000)'),),
+        ]
+    plotGroupsH = [
+        # New hcal plots
+        (('digiH_adc', 'sim'),), #'Trigger_4e-(000)'),),
+        (('digiH_thresh', 'sim'),), #'Trigger_4e-(000)'),),
         ]         
 
 
-    plotDict = {
+    plotDictT = {
         'trigRecT' :{'xaxis' : 'Time [ns]', 'yaxis' : 'Counts', 'binning' : {'nBins':20, 'min':0, 'max':10}, 'dimension' : 1}, #machine has a resolution of 0.5 ns apparently
         'trigRecE' :{'xaxis' : 'Energy [MeV]', 'yaxis' : 'Counts', 'binning' : {'nBins':40, 'min':0, 'max':2}, 'dimension' : 1}, #I have no idea what the machine resolution is
         'digiRecT' :{'xaxis' : 'TDC value', 'yaxis' : 'Counts', 'binning' : {'nBins':64, 'min':0, 'max':64}, 'dimension' : 1}, #
@@ -136,126 +166,161 @@ def main(options):
         'digiRecA(ts)' :{'xaxis' : 'time sample', 'yaxis' : 'ADC', 'dimension' : 2,
                         'binningX' : {'nBins':5, 'min':0, 'max':5},  
                         'binningY' : {'nBins':200, 'min':0, 'max':200}},                              
+    }
+
+    plotDictH = {
+        # For Hcal:
+        'digiH_adc'    :{'xaxis' : 'Bar number', 'yaxis' : 'ADC', 'dimension' : 2,
+                        'binningX' : {'nBins':24, 'min':0, 'max':12},
+                        'binningY' : {'nBins':100, 'min':0, 'max':100}},
+        'digiH_thresh' :{'xaxis' : 'Bar number', 'yaxis' : 'Hits over threshold', 'dimension' : 1,
+                        'binning' : {'nBins':24, 'min':0, 'max':12}},
     }    
 
 
-    allDatas = {}   
-    for channel in range(1,13):   
-        for plotNumber in range(len(plotGroups)):
-            canvas = r.TCanvas( 'c1', 'Histogram Drawing Options',1000,1000 )
-            pad = r.TPad( 'pad', 'The pad with the histogram', 0,0,1,1 )
-            pad.Draw()
-            pad.cd()
-            pad.SetGridx()
-            pad.SetGridy()
-            # pad.SetLogy()  
-            pad.GetFrame().SetFillColor( 18 )
-            
-            r.gStyle.SetOptStat("n");
-            
-
-            pad.SetRightMargin(0.1);
-            # pad.SetLeftMargin(0);
-            # pad.SetTopMargin(0);
-            
-            lines=[]
-            # legend = r.TLegend(0.7,0.95,1,1);
-            # legend.SetTextSize(0.03)
-            
-            # inFile = r.TFile(fileName+".root","READ")  
-            # allData = inFile.Get("LDMX_Events")
-            
-            for j in plotGroups[plotNumber]: #creates a plot for each variable you are going to plot
-                plotVar = var  = j[0]
-                fileName = j[1]           
-
-                #tried to make this more efficient by only running it once, but such methods are doomed to fail            
-                inFile = r.TFile(fileName+".root","READ")  
-                allData = inFile.Get("LDMX_Events")
-                # allData.Print("toponly")  #this command is godlike for learning things          
+    for section in ['TS', 'HCal']:
+        if section == 'TS':
+            channelRange = (1, 13)  # Main reason we need to do this:  TS and HCal use different channel/section divisions
+            plotGroups = plotGroupsT
+            plotDict = plotDictT
+            collection = options.tcollection
+            process = options.tprocess
+            channel_or_layer = 'channel'
+        elif section == 'HCal':
+            channelRange = (1, 20)  # For each section
+            plotGroups = plotGroupsH
+            plotDict = plotDictH
+            collection = options.hcollection
+            process = options.hprocess
+            channel_or_layer = 'layer'
+        print("plotgroups is ", plotGroups)
+    
+        for channel in range(channelRange[0], channelRange[1]):  #(1,13):
+            for plotNumber in range(len(plotGroups)):
+                canvas = r.TCanvas( 'c1', 'Histogram Drawing Options',1000,1000 )
+                pad = r.TPad( 'pad', 'The pad with the histogram', 0,0,1,1 )
+                pad.Draw()
+                pad.cd()
+                pad.SetGridx()
+                pad.SetGridy()
+                # pad.SetLogy()  
+                pad.GetFrame().SetFillColor( 18 )
                 
+                r.gStyle.SetOptStat("n");
                 
-                if plotDict[j[0]]['dimension'] == 1:
-                    histName = unabbreviate(plotVar)+" channel "+str(channel)       
-                    histTitle = ""       
-                    binning = plotDict[j[0]]['binning']                
-                    hist = r.TH1F(histName,histTitle,binning['nBins'],binning['min'],binning['max']) #name, title, nbins, start, finish          
-
+    
+                pad.SetRightMargin(0.1);
+                # pad.SetLeftMargin(0);
+                # pad.SetTopMargin(0);
+                
+                lines=[]
+                # legend = r.TLegend(0.7,0.95,1,1);
+                # legend.SetTextSize(0.03)
+                
+                # inFile = r.TFile(fileName+".root","READ")  
+                # allData = inFile.Get("LDMX_Events")
+                
+                for j in plotGroups[plotNumber]: #creates a plot for each variable you are going to plot
+                    plotVar = var  = j[0]
+                    fileName = j[1]           
+    
+                    #tried to make this more efficient by only running it once, but such methods are doomed to fail            
+                    inFile = r.TFile(fileName+".root","READ")  
+                    allData = inFile.Get("LDMX_Events")
+                    # allData.Print("toponly")  #this command is godlike for learning things          
                     
-                elif plotDict[j[0]]['dimension'] == 2:
-                    histName = "Channel "+str(channel)                     
-                    histTitle = ""                     
-                    binningX = plotDict[j[0]]['binningX']
-                    binningY = plotDict[j[0]]['binningY']                               
-                    # hist = r.TH2F(plotVar,histTitle,binningX['nBins'],binningX['min'],binningX['max'] #name, title, nbins, start, finish
-                    # ,binningY['nBins'],binningY['min'],binningY['max']) #nbins, start, finish                    
-
-                    hist = r.TProfile(histName,histTitle,binningX['nBins'],binningX['min'],binningX['max'] #name, title, nbins, start, finish
-                                      ,binningY['min'],binningY['max']) #nbins, start, finish          
-
-                    hist.GetXaxis().SetNdivisions(binningX['nBins'])                                      
-                    pad.SetRightMargin(0.12);
-                    pad.SetLeftMargin(0.14);        
-                        
-                hist.SetYTitle(plotDict[plotVar]['yaxis'])
-                hist.SetXTitle(plotDict[plotVar]['xaxis'])
-                
-                # hist.SetFillStyle(0);
-                hist.SetMarkerStyle(8) 
-                hist.SetMarkerColor(4)
-                # hist.SetMarkerSize(3)
-                hist.SetLineColor(rootColors[len(lines)])
-                        
-                # process = fileName        
-                #process = "process"       
-                hist = histogramFiller(hist, plotVar, allData, channel, collection=options.collection, process=options.process) 
-
-                
-                # depositionAnalyser(plotVar, allData, fileName)
-
-                if plotDict[j[0]]['dimension'] == 1:
-                    hist.SetMinimum(0.5)
-                    pad.SetLogy()
                     
-                    # try: 
-                        # hist.Scale(1./hist.Integral()) #normalises
-                        # hist.SetYTitle("Normalised entries")
-                        # hist.SetMaximum(1)                    
-                    # except: print("didnt normalise")
+                    if plotDict[j[0]]['dimension'] == 1:
+                        histName = unabbreviate(plotVar)+" channel "+str(channel)       
+                        histTitle = ""       
+                        binning = plotDict[j[0]]['binning']                
+                        hist = r.TH1F(histName,histTitle,binning['nBins'],binning['min'],binning['max']) #name, title, nbins, start, finish          
+    
+                        
+                    elif plotDict[j[0]]['dimension'] == 2:
+                        histName = "Channel "+str(channel)                     
+                        histTitle = ""                     
+                        binningX = plotDict[j[0]]['binningX']
+                        binningY = plotDict[j[0]]['binningY']                               
+                        # hist = r.TH2F(plotVar,histTitle,binningX['nBins'],binningX['min'],binningX['max'] #name, title, nbins, start, finish
+                        # ,binningY['nBins'],binningY['min'],binningY['max']) #nbins, start, finish                    
+    
+                        hist = r.TProfile(histName,histTitle,binningX['nBins'],binningX['min'],binningX['max'] #name, title, nbins, start, finish
+                                          ,binningY['min'],binningY['max']) #nbins, start, finish          
+    
+                        hist.GetXaxis().SetNdivisions(binningX['nBins'])                                      
+                        pad.SetRightMargin(0.12);
+                        pad.SetLeftMargin(0.14);
+    
+    
+                    hist.SetYTitle(plotDict[plotVar]['yaxis'])
+                    hist.SetXTitle(plotDict[plotVar]['xaxis'])
+                    
+                    # hist.SetFillStyle(0);
+                    hist.SetMarkerStyle(8) 
+                    hist.SetMarkerColor(4)
+                    # hist.SetMarkerSize(3)
+                    hist.SetLineColor(rootColors[len(lines)])
+
+                    if section == "HCal":
+                        for l in range(0, 26, 2):
+                            hist.GetXaxis().ChangeLabel(l, -1,-1,-1,-1,-1, " ")
+                            
+                    # process = fileName        
+                    #process = "process"       
+                    hist = histogramFiller(hist, plotVar, allData, channel, collection=collection, process=process) 
+
+    
+                    
+                    # depositionAnalyser(plotVar, allData, fileName)
+    
+                    if plotDict[j[0]]['dimension'] == 1:
+                        hist.SetMinimum(0.5)
+                        pad.SetLogy()
+                        
+                        # try: 
+                            # hist.Scale(1./hist.Integral()) #normalises
+                            # hist.SetYTitle("Normalised entries")
+                            # hist.SetMaximum(1)                    
+                        # except: print("didnt normalise")
+                    
+                    
+                    lines.append(copy.deepcopy(hist))          
+    
+                    # hist.SetOption("")
+                    
+                    if plotDict[j[0]]['dimension'] == 1:
+                        # lines[-1].Draw("HIST SAME")
+                        lines[-1].Draw("SAME E")
+                    if plotDict[j[0]]['dimension'] == 2:
+                        lines[-1].Draw("COLZ")    
+    
+                    
+                    # legend.AddEntry(lines[-1],j[0]+" "+j[1],"f");
+    
+    
                 
-                
-                lines.append(copy.deepcopy(hist))          
-
-                # hist.SetOption("")
-                
-                if plotDict[j[0]]['dimension'] == 1:
-                    # lines[-1].Draw("HIST SAME")
-                    lines[-1].Draw("SAME E")
-                if plotDict[j[0]]['dimension'] == 2:
-                    lines[-1].Draw("COLZ")    
-
-                
-                # legend.AddEntry(lines[-1],j[0]+" "+j[1],"f");
-
-
-            
-            # if plotDict[j[0]]['dimension'] == 1: legend.Draw();
-
-           
-            label = r.TLatex()
-            label.SetTextFont(42)
-            label.SetTextSize(0.03)
-            label.SetNDC()
-            # label.DrawLatex(0,  0.97, "Default: 0.5 GeV e-")
-
-            canvas.SaveAs("plots/"+plotVar+"-Channel-"+str(channel)+".png")
-            # canvas.SaveAs("plots/Digi.png")
-
-            canvas.Close() #memory leak killer
+                # if plotDict[j[0]]['dimension'] == 1: legend.Draw();
+    
+               
+                label = r.TLatex()
+                label.SetTextFont(42)
+                label.SetTextSize(0.03)
+                label.SetNDC()
+                # label.DrawLatex(0,  0.97, "Default: 0.5 GeV e-")
+    
+                canvas.SaveAs("plots/{}-{}-{}.png".format(plotVar, channel_or_layer, channel))
+                # canvas.SaveAs("plots/Digi.png")
+    
+                canvas.Close() #memory leak killer
 
 if __name__=="__main__":
     parser = OptionParser()	
-    parser.add_option('-c','--collection', dest='collection', default = "trigScintQIEDigisUp_" ,help='The name of the collection under which the digis are stored')
-    parser.add_option('-p','--process', dest='process', default = "process" ,help='The name of the process under which the digis are stored')
+    parser.add_option('-c','--collection', dest='tcollection', default = "trigScintQIEDigisUp_" ,help='The name of the collection under which the digis are stored')
+    parser.add_option('-p','--process', dest='tprocess', default = "process" ,help='The name of the process under which the digis are stored')
+    parser.add_option('-o','--hcollection', dest='hcollection', default="HcalDigis_", help='The name of the collection under which the hcal digis are stored')
+    parser.add_option('-r','--hprocess', dest='hprocess', default="v12", help='The name of the process under which the HCal digis are stored')
     options = parser.parse_args()[0]
     main(options)
+
+

@@ -1,6 +1,6 @@
 
 
-class DetectorID():
+class DetectorID(object):   #ADDED OBJECT
     subdetectorid_mask = 0x3F
     subdetectorid_shift = 26
     subdetectorid_payload_mask = 0x3FFFFFFF

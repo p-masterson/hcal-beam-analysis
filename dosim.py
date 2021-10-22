@@ -1,6 +1,6 @@
 from LDMX.Framework import ldmxcfg
 process=ldmxcfg.Process("test")
-process.maxEvents = 10
+process.maxEvents = 1000
 process.outputFiles=['sim.root']
 
 from LDMX.SimCore import generators
@@ -68,5 +68,12 @@ import LDMX.Hcal.HcalGeometry
 hcal_digis=digi.HcalDigiProducer()
 hcal_recs=digi.HcalRecProducer()
 
+from LDMX.TrigScint.trigScint import TrigScintQIEDigiProducer  #TrigScintDigiProducer
+tsDigisUp   = TrigScintQIEDigiProducer.up()
+#tsDigisTag  = TrigScintQIEDigiProducer.tagger()
+#tsDigisDown = TrigScintQIEDigiProducer.down()
+tsDigisUp.randomSeed = process.run
+#tsDigisTag.randomSeed = process.run
+#tsDigisDown.randomSeed = process.run
 
-process.sequence=[simulation, hcal_digis, hcal_recs]
+process.sequence=[simulation, hcal_digis, hcal_recs, tsDigisUp]  #, tsDigisTag, tsDigisDown]
