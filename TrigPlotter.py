@@ -1,10 +1,23 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-#this is a simplified and enhanced trigger-specific plotting program derived from Peter's from-scratch frankenpaste prototype plotter
-#naming standard: thisThing
-#To select which .root file and which type of plot to plot, just specify their name in the "plotGroups" array
+#this is a simplified and enhanced trigger+hcal plotting program derived from Peter's from-scratch frankenpaste prototype plotter
+# Plots include:
+# TS:
+# - TDC
+# - ADC
+# - Charge
+# - ADC vs TDC
+# - etc.
+# HCal:
+# - ADC value vs hcal channel
+# - Number of hcal hits over threshold per channel
 
-# NEW:  Now includes hcal plots!
+#naming standard: thisThing
+
+# ***Example usage:***
+# ldmx python TrigPlotter.py -i inputFile.root -p _v12
+
+
 
 #this program takes many things that end with ".root" and outputs simulation and reconstruction plots into the folder "plots"
 #the process name in the config file should be "process", but can be specified in command line arguments 
@@ -18,6 +31,7 @@ from array import array
 from ROOT import gSystem
 from optparse import OptionParser
 from TranslateHcalID import HcalDigiID, bar_to_pos
+import csv
 
 gSystem.Load("libFramework.so") #this library is vital for it to run. It might be old though?
 # rootColors=[1,2,4,28,7] #a presumably color-blind friendly color palette
@@ -62,7 +76,7 @@ def unabbreviate(str):
     elif str == "digiH_thresh": return "Hits over threshold"
     else: return str
 
-def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIEDigisUp_",process= "process", hcal_threshold = 40):
+def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIEDigisUp_",process= "process", hcalThresholds = None):
 
     if plotVar == 'digiRecT':
         for entry in allData: 
@@ -126,9 +140,10 @@ def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIE
                 d = digis.getDigi(i)
                 chID = d.id()
                 digiID = HcalDigiID().from_ID(chID)
-                if d.soi().adc_t() > hcal_threshold and digiID.layer() == channel:
-                     hist.Fill(digiID.bar() + 0.5*digiID.end())
-                
+                id_col = digiID.ID
+                if d.soi().adc_t() >  hcalThresholds[ID][0] + 1.0*hcalThresholds[ID][1] \
+                  and digiID.layer() == channel:
+                    hist.Fill(digiID.bar() + 0.5*digiID.end())
 
     return hist                
 
@@ -136,18 +151,20 @@ def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIE
 
 def main(options):       
     #In each line, just specify in the form (('digiRecT','fileName'),),   
+
+    fileName = options.input_file
     plotGroupsT = [
-        (('digiRecT','sim'),), #'Trigger_4e-(000)'),),
-        (('digiRecA','sim'),), #'Trigger_4e-(000)'),),
-        (('digiRecJ','sim'),), #'Trigger_4e-(000)'),),
-        (('digiRecA(T)','sim'),), #'Trigger_4e-(000)'),),
-        (('digiRecT(ts)','sim'),), #'Trigger_4e-(000)'),),
-        (('digiRecA(ts)','sim'),), #'Trigger_4e-(000)'),),
+        (('digiRecT',fileName),),
+        (('digiRecA',fileName),),
+        (('digiRecJ',fileName),),
+        (('digiRecA(T)',fileName),),
+        (('digiRecT(ts)',fileName),),
+        (('digiRecA(ts)',fileName),),
         ]
     plotGroupsH = [
         # New hcal plots
-        (('digiH_adc', 'sim'),), #'Trigger_4e-(000)'),),
-        (('digiH_thresh', 'sim'),), #'Trigger_4e-(000)'),),
+        (('digiH_adc', fileName),),
+        (('digiH_thresh', fileName),),
         ]         
 
 
@@ -176,6 +193,14 @@ def main(options):
         'digiH_thresh' :{'xaxis' : 'Bar number', 'yaxis' : 'Hits over threshold', 'dimension' : 1,
                         'binning' : {'nBins':24, 'min':0, 'max':12}},
     }    
+
+    # Read in csv file of thresholds for hcal over-threshold plots
+    thresholds = []
+    with open("csvfile.csv", newline="") as csvfile:
+        freader = csv.reader(csvfile, delimiter=',')
+        for row in freader:
+            # (adc_pedestal, adc_gain)
+            thresholds.append((float(row[2]), float(row[3])))
 
 
     for section in ['TS', 'HCal']:
@@ -238,7 +263,10 @@ def main(options):
     
                         
                     elif plotDict[j[0]]['dimension'] == 2:
-                        histName = "Channel "+str(channel)                     
+                        if section == "TS":
+                            histName = "Channel "+str(channel)                     
+                        elif section == "HCal":
+                            histName = "Bar "+str(channel)
                         histTitle = ""                     
                         binningX = plotDict[j[0]]['binningX']
                         binningY = plotDict[j[0]]['binningY']                               
@@ -268,7 +296,7 @@ def main(options):
                             
                     # process = fileName        
                     #process = "process"       
-                    hist = histogramFiller(hist, plotVar, allData, channel, collection=collection, process=process) 
+                    hist = histogramFiller(hist, plotVar, allData, channel, collection=collection, process=process, hcalThresholds=thresholds) 
 
     
                     
@@ -316,10 +344,10 @@ def main(options):
 
 if __name__=="__main__":
     parser = OptionParser()	
-    parser.add_option('-c','--collection', dest='tcollection', default = "trigScintQIEDigisUp_" ,help='The name of the collection under which the digis are stored')
-    parser.add_option('-p','--process', dest='tprocess', default = "process" ,help='The name of the process under which the digis are stored')
+    parser.add_option('-i','--input', dest='input_file', default = "sim.root", help="The input file to generate plots from")
+    parser.add_option('-c','--collection', dest='tcollection', default = "trigScintQIEDigisUp_" ,help='The name of the collection under which the hcal digis are stored')
+    parser.add_option('-p','--process', dest='tprocess', default = "process" ,help='The name of the process under which the trigger digis are stored')
     parser.add_option('-o','--hcollection', dest='hcollection', default="HcalDigis_", help='The name of the collection under which the hcal digis are stored')
-    parser.add_option('-r','--hprocess', dest='hprocess', default="v12", help='The name of the process under which the HCal digis are stored')
     options = parser.parse_args()[0]
     main(options)
 
