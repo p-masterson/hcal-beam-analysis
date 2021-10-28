@@ -15,8 +15,11 @@
 #naming standard: thisThing
 
 # ***Example usage:***
-# ldmx python TrigPlotter.py -i inputFile.root -p _v12
+# ldmx python TrigPlotter.py -i inputFile -p v12
+# Note:  inputFile should not include the suffix .root.
 
+# NOTE:  The DumbReconConditions.csv file containing pedestal values is only a template!  This file will need to be replaced 
+#        eventually, and the relevant HistogramFiller code checked.
 
 
 #this program takes many things that end with ".root" and outputs simulation and reconstruction plots into the folder "plots"
@@ -140,8 +143,9 @@ def histogramFiller(hist, plotVar, allData,  channel=0, collection="trigScintQIE
                 d = digis.getDigi(i)
                 chID = d.id()
                 digiID = HcalDigiID().from_ID(chID)
-                id_col = digiID.ID
-                if d.soi().adc_t() >  hcalThresholds[ID][0] + 1.0*hcalThresholds[ID][1] \
+                #print("chiD:", chID)
+                #print(hcalThresholds.keys())
+                if d.soi().adc_t() >  hcalThresholds[chID][0] + 1.0*hcalThresholds[chID][1] \
                   and digiID.layer() == channel:
                     hist.Fill(digiID.bar() + 0.5*digiID.end())
 
@@ -195,28 +199,34 @@ def main(options):
     }    
 
     # Read in csv file of thresholds for hcal over-threshold plots
-    thresholds = []
-    with open("csvfile.csv", newline="") as csvfile:
+    thresholds = {}
+    with open("DumbReconConditions.csv") as csvfile:
         freader = csv.reader(csvfile, delimiter=',')
+        rownum = 0
         for row in freader:
-            # (adc_pedestal, adc_gain)
-            thresholds.append((float(row[2]), float(row[3])))
+            #print(row)
+            if rownum < 2:
+                rownum += 1
+                continue
+            # (adc_pedestal, adc_gain) 
+            #print("ADDING")
+            thresholds[long(row[1])] = (float(row[2]), float(row[3]))
 
 
-    for section in ['TS', 'HCal']:
+    for section in ['HCal']:
         if section == 'TS':
             channelRange = (1, 13)  # Main reason we need to do this:  TS and HCal use different channel/section divisions
             plotGroups = plotGroupsT
             plotDict = plotDictT
             collection = options.tcollection
-            process = options.tprocess
+            process = options.process
             channel_or_layer = 'channel'
         elif section == 'HCal':
             channelRange = (1, 20)  # For each section
             plotGroups = plotGroupsH
             plotDict = plotDictH
             collection = options.hcollection
-            process = options.hprocess
+            process = options.process
             channel_or_layer = 'layer'
         print("plotgroups is ", plotGroups)
     
@@ -346,7 +356,7 @@ if __name__=="__main__":
     parser = OptionParser()	
     parser.add_option('-i','--input', dest='input_file', default = "sim.root", help="The input file to generate plots from")
     parser.add_option('-c','--collection', dest='tcollection', default = "trigScintQIEDigisUp_" ,help='The name of the collection under which the hcal digis are stored')
-    parser.add_option('-p','--process', dest='tprocess', default = "process" ,help='The name of the process under which the trigger digis are stored')
+    parser.add_option('-p','--process', dest='process', default = "process" ,help='The name of the process under which the trigger digis are stored')
     parser.add_option('-o','--hcollection', dest='hcollection', default="HcalDigis_", help='The name of the collection under which the hcal digis are stored')
     options = parser.parse_args()[0]
     main(options)
